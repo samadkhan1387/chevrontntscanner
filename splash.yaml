@@ -1,0 +1,13 @@
+flutter_native_splash:
+  color: "#4183B2"
+  image: assets/Chevron.png
+  color_dark: "#4183B2"
+  image_dark: assets/Chevron.png
+
+  android_12:
+    image: assets/Chevron.png
+    icon_background_color: "#4183B2"
+    image_dark: assets/Chevron.png
+    icon_background_color_dark: "#4183B2"
+
+  web: false

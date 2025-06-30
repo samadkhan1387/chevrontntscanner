@@ -1,344 +1,412 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';  // Import intl for date formatting
+import '../GS1 Barcode Parser/barcode_parser.dart';
 import '../HoneyWell Plugin/code_format.dart';
-import '../HoneyWell Plugin/honeywell_scanner.dart';
 import '../HoneyWell Plugin/scanned_data.dart';
 import '../HoneyWell Plugin/scanner_callback.dart';
+import '../Scanner Provider/scanner_provider.dart';
 import '../utils/constants.dart';
 
-class ScanDataMatrixScreen extends StatefulWidget {
-
+class ScanDataMatrixScreen extends ConsumerStatefulWidget {
   const ScanDataMatrixScreen({super.key});
 
   @override
-  State createState() => _ScanDataMatrixScreenState();
+  ConsumerState<ScanDataMatrixScreen> createState() => _ScanDataMatrixScreenState();
 }
 
-class _ScanDataMatrixScreenState extends State<ScanDataMatrixScreen>
-    with WidgetsBindingObserver
-    implements ScannerCallback {
-  HoneywellScanner honeywellScanner = HoneywellScanner();
-  ScannedData? scannedData;
-  String? errorMessage;
-  bool scannerEnabled = false;
-  bool scan1DFormats = true;
-  bool scan2DFormats = true;
-  bool isDeviceSupported = false;
+class _ScanDataMatrixScreenState extends ConsumerState<ScanDataMatrixScreen> with WidgetsBindingObserver implements ScannerCallback {
+  List<Map<String, String>> parsedBarcodeData = [];
 
-  static const  BTN_START_SCANNER = 0,
-      BTN_STOP_SCANNER = 1,
-      BTN_START_SCANNING = 2,
-      BTN_STOP_SCANNING = 3;
+  // Add aiDescriptions map for human-readable keys
+  final Map<String, String> aiDescriptions = {
+    '10': 'Batch No',
+    '21': 'Serial No',
+    '11': 'Prod Date',
+    '91': 'PName',
+  };
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    honeywellScanner.setScannerCallback(this);
-    // honeywellScanner.setScannerDecodeCallback(onDecoded);
-    // honeywellScanner.setScannerErrorCallback(onError);
-    init();
+    final scanner = ref.read(scannerProvider);
+    scanner.setScannerCallback(this);
+    applyScannerSettings();
   }
 
-  Future<void> init() async {
-    updateScanProperties();
-    isDeviceSupported = await honeywellScanner.isSupported();
-    if (mounted) setState(() {});
-  }
+  void applyScannerSettings() {
+    final scanner = ref.read(scannerProvider);
+    final scan2D = ref.read(scan2DProvider);
 
-  void updateScanProperties() {
-    List<CodeFormat> codeFormats = [];
-    if (scan1DFormats) codeFormats.addAll(CodeFormatUtils.ALL_1D_FORMATS);
-    if (scan2DFormats) codeFormats.addAll(CodeFormatUtils.ALL_2D_FORMATS);
+    List<CodeFormat> formats = [];
+    if (scan2D) formats.addAll(CodeFormatUtils.ALL_2D_FORMATS);
 
-//    codeFormats.add(CodeFormat.AZTEC);
-//    codeFormats.add(CodeFormat.CODABAR);
-//    codeFormats.add(CodeFormat.CODE_39);
-//    codeFormats.add(CodeFormat.CODE_93);
-//    codeFormats.add(CodeFormat.CODE_128);
-//    codeFormats.add(CodeFormat.DATA_MATRIX);
-//    codeFormats.add(CodeFormat.EAN_8);
-//    codeFormats.add(CodeFormat.EAN_13);
-////  codeFormats.add(CodeFormat.ITF);
-//    codeFormats.add(CodeFormat.MAXICODE);
-//    codeFormats.add(CodeFormat.PDF_417);
-//    codeFormats.add(CodeFormat.QR_CODE);
-//    codeFormats.add(CodeFormat.RSS_14);
-//    codeFormats.add(CodeFormat.RSS_EXPANDED);
-//    codeFormats.add(CodeFormat.UPC_A);
-//    codeFormats.add(CodeFormat.UPC_E);
-////    codeFormats.add(CodeFormat.UPC_EAN_EXTENSION);
-
-    Map<String, dynamic> properties = {
-      ...CodeFormatUtils.getAsPropertiesComplement(codeFormats),
+    scanner.setProperties({
+      ...CodeFormatUtils.getAsPropertiesComplement(formats),
       'DEC_CODABAR_START_STOP_TRANSMIT': true,
       'DEC_EAN13_CHECK_DIGIT_TRANSMIT': true,
-    };
-    honeywellScanner.setProperties(properties);
+    });
   }
 
-  @override
-  void onDecoded(ScannedData? scannedData) {
-    print(
-        '===== Instance decoded data: ${scannedData?.code} =====');
-    setState(() {
-      this.scannedData = scannedData;
-    });
+  void onDecoded(ScannedData? data) {
+    if (data != null) {
+      final barcode = data.code;
+      // final barcodeType = data.codeType; // Get the barcode type
+      //
+      // // Check if barcode type is DataMatrix
+      // if (barcodeType != 'DataMatrix') {
+      //   _showSnackBar('Invalid barcode type. Please scan a DataMatrix barcode.', const Color(0xFFED1C24));
+      //   return;
+      // }
+      // Check if the barcode has already been scanned
+      bool isAlreadyScanned = parsedBarcodeData.any((element) => element['rawBarcode'] == barcode);
+      if (isAlreadyScanned) {
+        _showSnackBar('This Barcode has Already Been Scanned.', RedColor);
+        return; // Exit the function if the barcode is already scanned
+      }
+
+      try {
+        final parser = GS1BarcodeParser.defaultParser();
+        final parsedData = parser.parse(barcode!);
+
+        print("Parsed Data: $parsedData");
+
+        // Convert parsed data to Map
+        Map<String, String> barcodeData = {};
+        parsedData.elements.forEach((key, element) {
+          barcodeData[key] = element.data.toString();
+        });
+        barcodeData['rawBarcode'] = barcode;
+
+        // Check if the required fields are available
+        if (barcodeData.containsKey('10') &&
+            barcodeData.containsKey('21') &&
+            barcodeData.containsKey('11') &&
+            barcodeData.containsKey('91')) {
+          // All required fields are present, add data to the list
+          setState(() {
+            parsedBarcodeData.insert(0, barcodeData); // Insert at the top of the list
+          });
+        } else {
+          // If any required field is missing
+          _showSnackBar('Missing Required Data Fields. Please Scan a Complete Barcode.', RedColor);
+        }
+
+        // Update scannedData provider
+        ref.read(scannedDataProvider.notifier).state = data; // Update the provider with the decoded data
+      } catch (e) {
+        _showSnackBar('Failed to Parse Barcode', RedColor);
+        print("Error parsing barcode: $e");
+      }
+    }
+  }
+
+  void _showSnackBar(String message, Color color) {
+    final snackBar = SnackBar(
+      content: Center(
+        child: Text(
+          message,
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+          textAlign: TextAlign.center,
+        ),
+      ),
+      backgroundColor: color,
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 1),
+      margin: const EdgeInsets.only(left: 05, bottom : 05, right: 05),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 
   @override
   void onError(Exception error) {
-    setState(() {
-      errorMessage = error.toString();
-    });
+    ref.read(scannerErrorProvider.notifier).state = error.toString();
   }
 
-  Widget get scannedDataView => RichText(
-    textAlign: TextAlign.center,
-    text: TextSpan(
-        style: TextStyle(
-            color: Theme.of(context).textTheme.bodyLarge?.color,
-            height: 0.8),
-        children: [
-          const TextSpan(text: 'Scanned code: '),
-          TextSpan(
-              text: '${scannedData?.code}\n\n',
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-          const TextSpan(text: 'Scanned codeId symbol: '),
-          TextSpan(
-              text: '${scannedData?.codeId}\n\n',
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-          const TextSpan(text: 'Scanned code type: '),
-          TextSpan(
-              text: '${scannedData?.codeType}\n\n',
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-          const TextSpan(text: 'Scanned aimId: '),
-          TextSpan(
-              text: '${scannedData?.aimId}\n\n',
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-          const TextSpan(text: 'Scanned charset: '),
-          TextSpan(
-              text: '${scannedData?.charset}\n\n',
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-        ]),
-  );
+  @override
+  void dispose() {
+    final scanner = ref.read(scannerProvider);
+    scanner.stopScanning();
+    scanner.disposeScanner();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final scanner = ref.read(scannerProvider);
+    if (state == AppLifecycleState.resumed) {
+      scanner.resumeScanner();
+    } else {
+      scanner.pauseScanner();
+    }
+  }
+
+  // Function to format the date
+  String formatDate(DateTime date) {
+    final DateFormat formatter = DateFormat('dd-MM-yyyy');
+    return formatter.format(date);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final scannedData = ref.watch(scannedDataProvider); // Get scanned data
+    final errorMessage = ref.watch(scannerErrorProvider); // Get error message
+    final isScannerEnabled = ref.watch(scannerEnabledProvider); // Check scanner status
+
+    // Initial placeholder values if no data has been scanned
+    final String scannedCode = scannedData?.code ?? 'Please Scan';
+    final String scannedCodeType = scannedData?.codeType ?? 'Type Unknown';
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: BlueColor,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            Navigator.pop(context);
-          },
+          onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          "DataMatrix Scan",
-          style: TextStyle(
-            fontSize: 18,
-            color: Colors.white,
-          ),
-        ),
+        title: const Text("DataMatrix Scan", style: TextStyle(fontSize: 18, color: Colors.white)),
       ),
-      body: Center(
-        child: Scrollbar(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Text(
-                  'Device supported: $isDeviceSupported',
-                  style: TextStyle(
-                      color: isDeviceSupported ? Colors.green : Colors.red,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Scanner: ${scannerEnabled ? "Started" : "Stopped"}',
-                  style: TextStyle(
-                      color: scannerEnabled ? Colors.blue : Colors.orange),
-                ),
-                const SizedBox(height: 8),
-                if (scannedData != null && errorMessage == null)
-                  scannedDataView,
-                const SizedBox(height: 8),
-                if (errorMessage != null) ...[
-                  Text(
-                    'Error: $errorMessage',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        color: Colors.red, fontWeight: FontWeight.bold),
+      body: Column(
+        children: [
+          // === Status Container ===
+          Padding(
+            padding: const EdgeInsets.only(left: 10.0, right: 10.0, top: 05.0),
+            child: Container(
+              padding: const EdgeInsets.all(05),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade800),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 1,
+                    offset: const Offset(0, 0),
                   ),
-                  const SizedBox(height: 8),
                 ],
-                SwitchListTile(
-                  title: const Text("Scan 1D Codes"),
-                  subtitle: const Text("like Code-128, Code-39, Code-93, etc"),
-                  value: scan1DFormats,
-                  onChanged: (value) {
-                    scan1DFormats = value;
-                    updateScanProperties();
-                    setState(() {});
-                  },
-                ),
-                SwitchListTile(
-                  title: const Text("Scan 2D Codes"),
-                  subtitle: const Text("like QR, Data Matrix, Aztec, etc"),
-                  value: scan2DFormats,
-                  onChanged: (value) {
-                    scan2DFormats = value;
-                    updateScanProperties();
-                    setState(() {});
-                  },
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: () => onClick(BTN_START_SCANNER),
-                      child: const Text("Start Scanner"),
-                    ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade700,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: () => onClick(BTN_STOP_SCANNER),
-                      child: const Text("Stop Scanner"),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: () => onClick(BTN_START_SCANNING),
-                      child: const Text("Start Scanning"),
-                    ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.shade700,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: () => onClick(BTN_STOP_SCANNING),
-                      child: const Text("Stop Scanning"),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-              ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Scanner Status Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Scanner Status :', style: TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.bold)),
+                      Text(isScannerEnabled ? 'Active' : 'InActive', style: TextStyle(color: isScannerEnabled ? Colors.green : RedColor, fontSize: 13, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Code Type :', style: TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.bold)),
+                      Text(scannedCodeType, style: const TextStyle(color: RedColor, fontSize: 13, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.only(left: 10.0, right: 10.0, top: 05.0, bottom: 05.0),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(05),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade800),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 1,
+                    offset: const Offset(0, 0),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Scanned Code:', style: TextStyle( fontSize: 12, color:Colors.black, fontWeight: FontWeight.bold)),
+                  Text(scannedCode, style: const TextStyle(fontSize: 12), textAlign: TextAlign.center),
+                ],
+              ),
+            ),
+          ),
+          // === Error Message ===
+          if (errorMessage != null)
+            Text('Error: $errorMessage', textAlign: TextAlign.center, style: const TextStyle(color: RedColor, fontWeight: FontWeight.bold)),
+
+          // === Parsed Data ListView ===
+          // === Parsed Data ListView ===
+          Expanded(
+            child: parsedBarcodeData.isEmpty
+            // Show "No barcode scanned yet" message and icon when the list is empty
+                ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    'assets/images/NoBarcode.png', // Replace with your actual image path
+                    width: 80, // You can adjust the size as needed
+                    height: 80,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'No Barcode Scanned Yet',
+                    style: TextStyle(fontSize: 14,color: Colors.black, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            )
+            // Display the ListView when there are items in the list
+                : ListView.builder(
+              shrinkWrap: true,
+              itemCount: parsedBarcodeData.length,
+              itemBuilder: (context, index) {
+                final barcodeData = parsedBarcodeData[index];
+                return Padding(
+                  padding: const EdgeInsets.only(left: 10.0, right: 10.0, top: 5.0),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 5.0),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.grey.shade800),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.01),
+                          blurRadius: 1,
+                          offset: const Offset(0, 0),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 5.0),
+                          decoration: const BoxDecoration(
+                            color: BlueColor,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(9.0),
+                              topRight: Radius.circular(9.0),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Text(
+                                "Scanned Barcode",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14.0,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Colors.black),
+                                onPressed: () {
+                                  setState(() {
+                                    parsedBarcodeData.removeAt(index); // Remove item on cross click
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Display each key and its description using aiDescriptions map
+                        for (var key in barcodeData.keys)
+                          if (key != 'rawBarcode')
+                            Padding(
+                              padding: const EdgeInsets.only(left: 5.0, right: 5.0, bottom: 0),
+                              child: Row(
+                                children: [
+                                  // Description on the left side
+                                  Expanded(
+                                    flex: 2,
+                                    child: Text(
+                                      aiDescriptions[key] ?? key,
+                                      style: const TextStyle(fontSize: 13, color: Colors.black, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+
+                                  // Data on the right side, formatted if date
+                                  Expanded(
+                                    flex: 5,
+                                    child: Text(
+                                      key == '11' // Assuming '11' is the Prod Date field (Production Date)
+                                          ? formatDate(DateTime.parse(barcodeData[key]!))
+                                          : barcodeData[key] ?? 'N/A',
+                                      style: const TextStyle(fontSize: 13, color: Colors.black),
+                                      overflow: TextOverflow.visible, // Handle overflow
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 1, offset: const Offset(0, 0)),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final scanner = ref.read(scannerProvider);
+                  await scanner.startScanning();
+                },
+                label: const Text("Start Scanning"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10), // Set the border radius to 5
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final scanner = ref.read(scannerProvider);
+                  await scanner.stopScanning();
+                },
+                label: const Text("Stop Scanning"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: RedColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10), // Set the border radius to 5
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    switch (state) {
-      case AppLifecycleState.resumed:
-        resumeScanner();
-        break;
-      case AppLifecycleState.inactive:
-        pauseScanner();
-        break;
-      case AppLifecycleState
-          .paused: //AppLifecycleState.paused is used as stopped state because deactivate() works more as a pause for lifecycle
-        pauseScanner();
-        break;
-      case AppLifecycleState.detached:
-        pauseScanner();
-        break;
-      default:
-        break;
-    }
-  }
-
-  Future<void> onClick(int id) async {
-    try {
-      errorMessage = null;
-      switch (id) {
-        case BTN_START_SCANNER:
-          if (await startScanner()) {
-            setState(() {
-              scannerEnabled = true;
-            });
-          }
-          break;
-        case BTN_STOP_SCANNER:
-          if (await stopScanner()) {
-            setState(() {
-              scannerEnabled = false;
-            });
-          }
-          break;
-        case BTN_START_SCANNING:
-          await startScanning();
-          break;
-        case BTN_STOP_SCANNING:
-          await stopScanning();
-          break;
-      }
-    } catch (e) {
-      print(e);
-      setState(() {
-        errorMessage = e.toString();
-      });
-    }
-  }
-
-  Future<bool> startScanner() {
-    print('===== Instance started scanner =====');
-    return honeywellScanner.startScanner();
-  }
-
-  Future<bool> stopScanner() {
-    print('===== Instance stopped scanner =====');
-    return honeywellScanner.stopScanner();
-  }
-
-  Future<bool> pauseScanner() {
-    print('===== Instance paused scanner =====');
-    return honeywellScanner.pauseScanner();
-  }
-
-  Future<bool> resumeScanner() {
-    print('===== Instance resumed scanner =====');
-    return honeywellScanner.resumeScanner();
-  }
-
-  Future<bool> startScanning() {
-    print('===== Instance started scanning =====');
-    return honeywellScanner.startScanning();
-  }
-
-  Future<bool> stopScanning() {
-    print('===== Instance stopped scanning =====');
-    return honeywellScanner.stopScanning();
-  }
-
-  Future<bool> disposeScanner() {
-    print('===== Instance disposed ===== ');
-    return honeywellScanner.disposeScanner();
-  }
-
-  @override
-  void dispose() {
-    disposeScanner();
-    super.dispose();
   }
 }

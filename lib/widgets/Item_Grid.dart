@@ -9,47 +9,47 @@ class ItemGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     List<Item> items = [
       Item(
-        name: "Scan",
+        name: "Scanner",
         type: "DataMatrix",
-        color: const Color.fromRGBO(89, 69, 199, 1),
-        imagePath: "assets/images/chevron.png",
-      ),
-      Item(
-        name: "Stock Out",
-        type: "Product",
-        color: const Color.fromRGBO(237, 116, 41, 1),
-        imagePath: "assets/images/chevron.png",
-      ),
-      Item(
-        name: "View Batches",
-        type: "Info",
-        color: const Color.fromRGBO(34, 153, 84, 1),
-        imagePath: "assets/images/chevron.png",
-      ),
-      Item(
-        name: "Print Labels",
-        type: "Label",
-        color: const Color.fromRGBO(52, 152, 219, 1),
-        imagePath: "assets/images/chevron.png",
-      ),
-      Item(
-        name: "Scan Barcode",
-        type: "Scanner",
         color: const Color.fromRGBO(231, 76, 60, 1),
         imagePath: "assets/images/chevron.png",
       ),
       Item(
-        name: "Inventory Log",
-        type: "Log",
-        color: const Color.fromRGBO(155, 89, 182, 1),
+        name: "All Data",
+        type: "Scanned Data",
+        color: const Color.fromRGBO(237, 116, 41, 1),
         imagePath: "assets/images/chevron.png",
       ),
       Item(
-        name: "Add Product",
-        type: "Entry",
-        color: const Color.fromRGBO(241, 196, 15, 1),
+        name: "Excel",
+        type: "Download",
+        color: const Color.fromRGBO(34, 153, 84, 1),
         imagePath: "assets/images/chevron.png",
       ),
+      // Item(
+      //   name: "Print Labels",
+      //   type: "Label",
+      //   color: const Color.fromRGBO(52, 152, 219, 1),
+      //   imagePath: "assets/images/chevron.png",
+      // ),
+      // Item(
+      //   name: "Scan Barcode",
+      //   type: "Scanner",
+      //   color: const Color.fromRGBO(89, 69, 199, 1),
+      //   imagePath: "assets/images/chevron.png",
+      // ),
+      // Item(
+      //   name: "Inventory Log",
+      //   type: "Log",
+      //   color: const Color.fromRGBO(155, 89, 182, 1),
+      //   imagePath: "assets/images/chevron.png",
+      // ),
+      // Item(
+      //   name: "Add Product",
+      //   type: "Entry",
+      //   color: const Color.fromRGBO(241, 196, 15, 1),
+      //   imagePath: "assets/images/chevron.png",
+      // ),
       Item(
         name: "Settings",
         type: "Config",
@@ -74,7 +74,7 @@ class ItemGrid extends StatelessWidget {
           return GestureDetector(
             onTap: () {
               switch (items[index].name) {
-                case "Scan":
+                case "Scanner":
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const ScanDataMatrixScreen()));
                   break;
                 case "Stock Out":

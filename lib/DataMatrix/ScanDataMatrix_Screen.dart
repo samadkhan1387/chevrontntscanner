@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';  // Import intl for date formatting
+import '../DBHelper/DBhelper.dart';
 import '../GS1 Barcode Parser/barcode_parser.dart';
 import '../HoneyWell Plugin/code_format.dart';
 import '../HoneyWell Plugin/scanned_data.dart';
@@ -8,15 +9,16 @@ import '../HoneyWell Plugin/scanner_callback.dart';
 import '../Scanner Provider/scanner_provider.dart';
 import '../utils/constants.dart';
 
-class ScanDataMatrixScreen extends ConsumerStatefulWidget {
-  const ScanDataMatrixScreen({super.key});
+class ScanDataMatrixData extends ConsumerStatefulWidget {
+  const ScanDataMatrixData({super.key});
 
   @override
-  ConsumerState<ScanDataMatrixScreen> createState() => _ScanDataMatrixScreenState();
+  ConsumerState<ScanDataMatrixData> createState() => _ScanDataMatrixPushDataState();
 }
 
-class _ScanDataMatrixScreenState extends ConsumerState<ScanDataMatrixScreen> with WidgetsBindingObserver implements ScannerCallback {
+class _ScanDataMatrixPushDataState extends ConsumerState<ScanDataMatrixData> with WidgetsBindingObserver implements ScannerCallback {
   List<Map<String, String>> parsedBarcodeData = [];
+
 
   // Add aiDescriptions map for human-readable keys
   final Map<String, String> aiDescriptions = {
@@ -35,6 +37,7 @@ class _ScanDataMatrixScreenState extends ConsumerState<ScanDataMatrixScreen> wit
     applyScannerSettings();
   }
 
+
   void applyScannerSettings() {
     final scanner = ref.read(scannerProvider);
     final scan2D = ref.read(scan2DProvider);
@@ -49,7 +52,7 @@ class _ScanDataMatrixScreenState extends ConsumerState<ScanDataMatrixScreen> wit
     });
   }
 
-  void onDecoded(ScannedData? data) {
+  Future<void> onDecoded(ScannedData? data) async {
     if (data != null) {
       final barcode = data.code;
       // final barcodeType = data.codeType; // Get the barcode type
@@ -73,21 +76,44 @@ class _ScanDataMatrixScreenState extends ConsumerState<ScanDataMatrixScreen> wit
         print("Parsed Data: $parsedData");
 
         // Convert parsed data to Map
+        // Map<String, String> barcodeData = {};
+        // parsedData.elements.forEach((key, element) {
+        //   barcodeData[key] = element.data.toString();
+        // });
+        // barcodeData['rawBarcode'] = barcode;
+
         Map<String, String> barcodeData = {};
         parsedData.elements.forEach((key, element) {
-          barcodeData[key] = element.data.toString();
+          if (key == '11') {
+            // Format GS1 AI 11 (Production Date) to yyyy-MM-dd
+            DateTime parsedDate = element.data;
+            barcodeData[key] = parsedDate.toIso8601String().split('T').first; // '2025-07-02'
+          } else {
+            barcodeData[key] = element.data.toString();
+          }
         });
         barcodeData['rawBarcode'] = barcode;
+
 
         // Check if the required fields are available
         if (barcodeData.containsKey('10') &&
             barcodeData.containsKey('21') &&
             barcodeData.containsKey('11') &&
             barcodeData.containsKey('91')) {
-          // All required fields are present, add data to the list
+
+          // Save to local ListView
           setState(() {
-            parsedBarcodeData.insert(0, barcodeData); // Insert at the top of the list
+            parsedBarcodeData.insert(0, barcodeData);
           });
+
+          // Save to SQLite database
+          // Insert into DB and get sid
+          final dbHelper = BarcodeDatabaseHelper();
+          int sid = await dbHelper.insertBarcode(barcodeData);
+          // Retrieve inserted record
+          final savedRecord = await dbHelper.getBarcodeById(sid);
+          print('📦 Barcode Saved to DB: $savedRecord');
+
         } else {
           // If any required field is missing
           _showSnackBar('Missing Required Data Fields. Please Scan a Complete Barcode.', RedColor);
@@ -168,7 +194,19 @@ class _ScanDataMatrixScreenState extends ConsumerState<ScanDataMatrixScreen> wit
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text("DataMatrix Scan", style: TextStyle(fontSize: 18, color: Colors.white)),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10.0),
+            child: Center(
+              child: Text(
+                '${parsedBarcodeData.length}',  // Display the count of scanned barcodes
+                style: const TextStyle(fontSize: 16, color: Colors.white, ),
+              ),
+            ),
+          ),
+        ],
       ),
+
       body: Column(
         children: [
           // === Status Container ===

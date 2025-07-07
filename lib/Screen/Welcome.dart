@@ -87,13 +87,13 @@ class _WelcomeState extends State<Welcome> {
                     ),
                   ),
                   const SizedBox(
-                    height: 10.0,
+                    height: 05.0,
                   ),
                   const Text(
                     "Chevron’s Track & Trace, A Complete Solution for Monitoring, Managing, and Optimizing Every Step of Your Production Process.",
                     style: TextStyle(
                       color: Color.fromRGBO(74, 77, 84, 1),
-                      fontSize: 13.0,
+                      fontSize: 14.0,
                     ),
                     textAlign: TextAlign.justify,
                   ),

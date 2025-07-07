@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
-import '../Screen/ScanDataMatrix_Screen.dart';
+import '../BarcodeDataPush/PushExcelGeneration.dart';
+import '../BarcodeDataPush/PushScannedData.dart';
+import '../BarcodeDataPush/ScanDataMatrixPushData_Screen.dart';
+import '../ExcelGeneration/ExcelGeneration.dart';
+import '../SavedScannedData/ScannedData.dart';
+import '../Settings/Settings.dart';
 import '../models/Items.dart';
 
 class ItemGrid extends StatelessWidget {
-  const ItemGrid({super.key});
+  final String selectedOrder; // This is the parameter passed to the grid
+
+  const ItemGrid({super.key, required this.selectedOrder});
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +36,7 @@ class ItemGrid extends StatelessWidget {
       // Item(
       //   name: "Print Labels",
       //   type: "Label",
-      //   color: const Color.fromRGBO(52, 152, 219, 1),
+      //   color: const Color.fromRGBO(52, 73, 94, 1),
       //   imagePath: "assets/images/chevron.png",
       // ),
       // Item(
@@ -51,9 +58,9 @@ class ItemGrid extends StatelessWidget {
       //   imagePath: "assets/images/chevron.png",
       // ),
       Item(
-        name: "Settings",
-        type: "Config",
-        color: const Color.fromRGBO(52, 73, 94, 1),
+        name: "Configuration",
+        type: "Settings",
+        color: const Color.fromRGBO(52, 152, 219, 1),
         imagePath: "assets/images/chevron.png",
       ),
     ];
@@ -75,16 +82,16 @@ class ItemGrid extends StatelessWidget {
             onTap: () {
               switch (items[index].name) {
                 case "Scanner":
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ScanDataMatrixScreen()));
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => ScanDataMatrixPushData( selectedOrder: selectedOrder!)));
                   break;
-                case "Stock Out":
-                  // Navigator.push(context, MaterialPageRoute(builder: (context) => const StockOutPage()));
+                case "All Data":
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const PushScannedData()));
                   break;
-                case "View Batches":
-                  // Navigator.push(context, MaterialPageRoute(builder: (context) => const ViewBatchesPage()));
+                case "Excel":
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const PushExcelGeneration()));
                   break;
-                case "Print Labels":
-                  // Navigator.push(context, MaterialPageRoute(builder: (context) => const PrintLabelsPage()));
+                case "Configuration":
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => SettingsPage()));
                   break;
                 case "Scan Barcode":
                   // Navigator.push(context, MaterialPageRoute(builder: (context) => const ScanBarcodePage()));

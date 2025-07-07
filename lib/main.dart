@@ -26,13 +26,63 @@ class MyApp extends StatelessWidget {
           title: 'Chevron TNT',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
-            scaffoldBackgroundColor: Constants.scaffoldBackgroundColor,
-            visualDensity: VisualDensity.adaptivePlatformDensity,
-            textTheme: GoogleFonts.poppinsTextTheme(),
+            colorScheme: ColorScheme.fromSeed(seedColor: BlueColor),
+            useMaterial3: true,
           ),
-          home: const Welcome(), // 👈 Start here directly
+          home: const Welcome(), // Start here directly
         );
       },
     );
   }
 }
+
+
+// bottomNavigationBar: Container(
+// padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+// decoration: BoxDecoration(
+// color: Colors.white,
+// boxShadow: [
+// BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 1, offset: const Offset(0, 0)),
+// ],
+// ),
+// child: Row(
+// mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+// children: [
+// Expanded(
+// child: ElevatedButton.icon(
+// onPressed: () async {
+// final scanner = ref.read(scannerProvider);
+// await scanner.startScanning();
+// },
+// label: const Text("Start Scanning"),
+// style: ElevatedButton.styleFrom(
+// backgroundColor: Colors.green,
+// foregroundColor: Colors.white,
+// padding: const EdgeInsets.symmetric(vertical: 12),
+// shape: RoundedRectangleBorder(
+// borderRadius: BorderRadius.circular(10), // Set the border radius to 5
+// ),
+// ),
+// ),
+// ),
+// const SizedBox(width: 12),
+// Expanded(
+// child: ElevatedButton.icon(
+// onPressed: () async {
+// final scanner = ref.read(scannerProvider);
+// await scanner.stopScanning();
+// },
+// label: const Text("Stop Scanning"),
+// style: ElevatedButton.styleFrom(
+// backgroundColor: RedColor,
+// foregroundColor: Colors.white,
+// padding: const EdgeInsets.symmetric(vertical: 12),
+// shape: RoundedRectangleBorder(
+// borderRadius: BorderRadius.circular(10), // Set the border radius to 5
+// ),
+// ),
+// ),
+// ),
+// ],
+// ),
+// ),
